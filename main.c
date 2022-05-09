@@ -6,20 +6,88 @@
 #include <dirent.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#define SERVER_PORT 8899
+#define SERVER_PORT 8888
 #define PATH "/home/kitush/Documents/Projects/library/library-client"
 #define LIST_CMD "fshare list" // done
 #define AUTH_CMD "fshare auth --key"
-#define READ_CMD "fshare read" // done
-#define WRITE_CMD "fshare write"
-#define CREATE_CMD "fshare new"
-#define DELETE_CMD "fshare delete"
+#define READ_CMD "fshare read"     // done
+#define CREATE_CMD "fshare new"    // done
+#define DELETE_CMD "fshare delete" // done
 
 bool startsWith(const char *pre, const char *str)
 {
     size_t lenpre = strlen(pre),
            lenstr = strlen(str);
     return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
+}
+
+char *substring(char *destination, const char *source, int beg, int n)
+{
+    // extracts `n` characters from the source string starting from `beg` index
+    // and copy them into the destination string
+    while (n > 0)
+    {
+        *destination = *(source + beg);
+
+        destination++;
+        source++;
+        n--;
+    }
+
+    // null terminate destination string
+    *destination = '\0';
+
+    // return the destination string
+    return destination;
+}
+
+int createFile(int client_sock, char *file_name_str)
+{
+    FILE *fp;
+
+    char file_name[1000] = PATH;
+
+    char exact_file_name[200] = "/";
+
+    strcat(exact_file_name, file_name_str);
+
+    strcat(file_name, exact_file_name);
+
+    fp = fopen(file_name, "w");
+
+    char *log = "File created successfully";
+    write(client_sock, log, strlen(log));
+    write(client_sock, "\n", 1);
+    write(client_sock, "fshare> ", 8);
+
+    return 0;
+}
+
+int deleteFile(int client_sock, char exact_file_name[])
+{
+
+    char file_name[1000] = PATH;
+
+    char exact_file_name_str[100] = "/";
+
+    strcat(exact_file_name_str, exact_file_name);
+
+    strcat(file_name, exact_file_name_str);
+
+    if (remove(file_name) == 0)
+    {
+        char *log = "File deleted successfully";
+        write(client_sock, log, strlen(log));
+    }
+    else
+    {
+        char *log = "File not deleted";
+        write(client_sock, log, strlen(log));
+    }
+
+    write(client_sock, "\n", 1);
+    write(client_sock, "fshare> ", 8);
+    return 0;
 }
 
 int readFile(int client_sock, char *file_name)
@@ -49,7 +117,6 @@ int readFile(int client_sock, char *file_name)
     // character by character using loop.
     while (fgets(str, 50, ptr) != NULL)
     {
-        printf("%s", str);
         write(client_sock, str, strlen(str));
     }
 
@@ -140,7 +207,28 @@ int create_socket()
         }
         else if (startsWith(READ_CMD, client_message))
         {
-            readFile(client_sock, "/package.json");
+            char file_name_str[100];
+            int client_message_size = strlen(client_message);
+            int file_name_size = client_message_size - 13;
+            printf("%d - %d\n", client_message_size, file_name_size);
+            substring(file_name_str, client_message, 13, file_name_size);
+            readFile(client_sock, file_name_str);
+        }
+        else if (startsWith(CREATE_CMD, client_message))
+        {
+            char file_name_str[100];
+            int client_message_size = strlen(client_message);
+            int file_name_size = client_message_size - 11;
+            substring(file_name_str, client_message, 11, file_name_size);
+            createFile(client_sock, file_name_str);
+        }
+        else if (startsWith(DELETE_CMD, client_message))
+        {
+            char file_name_str[100];
+            int client_message_size = strlen(client_message);
+            int file_name_size = client_message_size - 14;
+            substring(file_name_str, client_message, 14, file_name_size);
+            deleteFile(client_sock, file_name_str);
         }
         else if (startsWith("exit", client_message))
         {
@@ -172,6 +260,5 @@ int create_socket()
 int main()
 {
     create_socket();
-    // readFile();
     return 0;
 }
